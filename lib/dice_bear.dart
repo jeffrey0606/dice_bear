@@ -1,14 +1,22 @@
 library dice_bear;
 
+import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:dio/dio.dart';
+import 'package:dio_cache_interceptor/dio_cache_interceptor.dart';
+import 'package:dio_cache_interceptor_hive_store/dio_cache_interceptor_hive_store.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/http.dart';
 
 part 'utils.dart';
+
+Random _random = Random();
+
+// Global options
+late CacheOptions options;
 
 ///
 /// Builder for [Avatar]
@@ -44,6 +52,7 @@ class DiceBearBuilder {
     this.rotate = _defaultRotate,
     this.translateX = _defaultTranslateX,
     this.translateY = _defaultTranslateY,
+    required String hiveStorePath,
   }) {
     assert(radius >= 0 && radius <= 50);
     assert(size == null || size! >= 1);
@@ -51,6 +60,8 @@ class DiceBearBuilder {
     assert(rotate >= 0 && rotate <= 360);
     assert(translateX >= -100 && translateX <= 100);
     assert(translateY >= -100 && translateY <= 100);
+
+    initOptions(hiveStorePath);
   }
 
   DiceBearBuilder.withRandomSeed({
@@ -63,6 +74,8 @@ class DiceBearBuilder {
     this.rotate = _defaultRotate,
     this.translateX = _defaultTranslateX,
     this.translateY = _defaultTranslateY,
+    required String hiveStorePath,
+    Random? random,
   }) {
     assert(radius >= 0 && radius <= 50);
     assert(size == null || size! >= 1);
@@ -71,7 +84,42 @@ class DiceBearBuilder {
     assert(translateX >= -100 && translateX <= 100);
     assert(translateY >= -100 && translateY <= 100);
 
+    if (random != null) {
+      _random = random;
+    }
+
+    initOptions(hiveStorePath);
+
     seed = _randomString();
+  }
+
+  void initOptions(String storePath) {
+    options = CacheOptions(
+      // A default store is required for interceptor.
+      store: HiveCacheStore(storePath),
+
+      // All subsequent fields are optional.
+
+      // Default.
+      policy: CachePolicy.request,
+      // Returns a cached response on error but for statuses 401 & 403.
+      // Also allows to return a cached response on network errors (e.g. offline usage).
+      // Defaults to [null].
+      hitCacheOnErrorExcept: [401, 403],
+      // Overrides any HTTP directive to delete entry past this duration.
+      // Useful only when origin server has no cache config or custom behaviour is desired.
+      // Defaults to [null].
+      maxStale: const Duration(days: 500),
+      // Default. Allows 3 cache sets and ease cleanup.
+      priority: CachePriority.normal,
+      // Default. Body and headers encryption with your own algorithm.
+      cipher: null,
+      // Default. Key builder to retrieve requests.
+      keyBuilder: CacheOptions.defaultCacheKeyBuilder,
+      // Default. Allows to cache POST requests.
+      // Overriding [keyBuilder] is strongly recommended when [true].
+      allowPostMethod: false,
+    );
   }
 
   ///
@@ -143,12 +191,35 @@ class Avatar {
   /// Returns [null] when it fails to download the image
   Future<Uint8List?> asRawSvgBytes() async {
     try {
-      Response response = await http.get(svgUri);
+      final response = await dio.getUri(
+        svgUri,
+      );
       if (response.statusCode == 200) {
-        return response.bodyBytes;
+        return Uint8List.fromList(utf8.encode(response.data));
       } else {
         throw Exception(
-          'response code is ${response.statusCode} with message ${response.body}',
+          'response code is ${response.statusCode} with message ${response.data}',
+        );
+      }
+    } catch (e, stackTrace) {
+      debugPrintStack(
+        stackTrace: stackTrace,
+        label: 'Error occurred in rawSvg()',
+      );
+      return null;
+    }
+  }
+
+  Future<String?> asRawSvgString() async {
+    try {
+      final response = await dio.getUri(
+        svgUri,
+      );
+      if (response.statusCode == 200) {
+        return response.data;
+      } else {
+        throw Exception(
+          'response code is ${response.statusCode} with message ${response.data}',
         );
       }
     } catch (e, stackTrace) {

@@ -3,7 +3,18 @@ part of 'dice_bear.dart';
 const String _diceBearHost = "api.dicebear.com";
 const String _diceBearApiVersion = "5.x";
 
-final Random _random = Random();
+final dio = Dio()
+  ..interceptors.add(
+    DioCacheInterceptor(
+      options: options,
+    ),
+  )
+  ..interceptors.add(
+    LogInterceptor(
+      requestBody: true,
+      responseBody: true,
+    ),
+  );
 
 extension _DiceBearSpriteExt on DiceBearSprite {
   String get value {
