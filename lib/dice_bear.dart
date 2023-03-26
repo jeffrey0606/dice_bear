@@ -304,7 +304,6 @@ class Avatar {
       excludeFromSemantics: excludeFromSemantics,
       clipBehavior: clipBehavior,
       cacheColorFilter: cacheColorFilter,
-      theme: theme,
     );
   }
 
